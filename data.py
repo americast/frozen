@@ -9,6 +9,7 @@ import csv
 from tqdm import tqdm
 import zlib
 import os
+import torch.nn.functional as F
 
 class CCD(Dataset):
     def __init__(self, transform=None, target_transform=None):
@@ -30,7 +31,8 @@ class CCD(Dataset):
         url     = self.tsv_list[idx][1]
         name = zlib.crc32(url.encode('utf-8')) & 0xffffffff
         img_path = os.path.join(self.tsv_folder, str(name))
-        image = read_image(img_path)
+        image = read_image(img_path) /255
+        image = F.interpolate(image.unsqueeze(0), size=(512,512)).squeeze(0)
         label = self.tsv_list[idx][0]
         if self.transform:
             image = self.transform(image)
