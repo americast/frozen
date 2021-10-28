@@ -10,9 +10,7 @@ from torch.nn import CrossEntropyLoss
 
 # Initialise the pretrained language model
 tokenizer          = T5Tokenizer.from_pretrained("t5-large")
-model_lang         = T5Model.from_pretrained("t5-large")
-model_lang_encoder = T5Model.from_pretrained("t5-large").encoder
-model_lang_decoder = T5Model.from_pretrained("t5-large").decoder
+model_lang         = T5ForConditionalGeneration.from_pretrained("t5-large")
 model_lang_embed   = torch.nn.Sequential(*list(model_lang.children())[:1])
 
 for p in model_lang.parameters():
@@ -43,26 +41,18 @@ for img, label in dataloader:
 
     max_source_length = max_target_length = 1000
 
-    # Pass through the encoder
+    # Pass through the embedder
     input_sequences = list(label)
     encoding = tokenizer([sequence for sequence in input_sequences],
                         padding='longest',
                         max_length=max_source_length,
                         truncation=True,
                         return_tensors="pt")
-    out_encoder = model_lang_encoder(encoding["input_ids"])[0]
-    decoder_input = torch.cat([out_vis_ext_1, out_vis_ext_2, out_encoder], axis=1)
-    decoder_output = model_lang_decoder(decoder_input)[0]
-
-    pu.db
-
-
-    loss = loss_fct(lm_logits.view(-1, out.size(-1)), labels.view(-1))
-
-    
-
-
-    pass
+    out_embedder = model_lang_embed(encoding["input_ids"])
+    lang_input = torch.cat([out_vis_ext_1, out_vis_ext_2, out_embedder], axis=1)
+    decoder_output = model_lang(inputs_embeds=lang_input, labels=encoding["input_ids"])
+    loss = decoder_output.loss
+    loss.backward()
 
 # initialise CC dataset
 
