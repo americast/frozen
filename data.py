@@ -13,7 +13,7 @@ import torch.nn.functional as F
 import pickle
 
 class CCD(Dataset):
-    def __init__(self, transform=None, target_transform=None):
+    def __init__(self, transform=None, target_transform=None, debug=False):
         self.tsv_folder = "/coc/dataset/conceptual_caption/DownloadConceptualCaptions/training/"
         f = open("tsv_list_training.pkl", "rb")
         self.tsv_list = pickle.load(f)
@@ -21,9 +21,13 @@ class CCD(Dataset):
         f.close()
         self.transform = transform
         self.target_transform = target_transform
+        self.debug = debug
 
     def __len__(self):
-        return len(self.tsv_list)
+        if self.debug:
+            return len(self.tsv_list[:10000])
+        else:
+            return len(self.tsv_list)
 
     def __getitem__(self, idx):
         folder = "training"
