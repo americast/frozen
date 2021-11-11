@@ -13,9 +13,13 @@ import torch.nn.functional as F
 import pickle
 
 class CCD(Dataset):
-    def __init__(self, transform=None, target_transform=None, debug=False):
-        self.tsv_folder = "/coc/dataset/conceptual_caption/DownloadConceptualCaptions/training/"
-        f = open("tsv_list_training.pkl", "rb")
+    def __init__(self, trainval = "train", transform=None, target_transform=None, debug=False):
+        if trainval == "train":
+            self.tsv_folder = "/coc/dataset/conceptual_caption/DownloadConceptualCaptions/training/"
+            f = open("tsv_list_training.pkl", "rb")
+        else:
+            self.tsv_folder = "/coc/dataset/conceptual_caption/DownloadConceptualCaptions/validation/"
+            f = open("tsv_list_validation.pkl", "rb")
         self.tsv_list = pickle.load(f)
         print(len(self.tsv_list))
         f.close()
@@ -42,6 +46,37 @@ class CCD(Dataset):
 
         image = F.interpolate(image.unsqueeze(0), size=(512,512)).squeeze(0)
         label = self.tsv_list[idx][0]
+        if self.transform:
+            image = self.transform(image)
+        
+        return image, label
+
+class miniImageNet(Dataset):
+    def __init__(self, trainval = "val", transform=None, target_transform=None, debug=False):
+        if trainval == "train":
+            pkl_file = "/srv/datasets/MiniImagenet/miniImageNet_category_split_train_phase_train.pickle"
+        else:
+            pkl_file = "/srv/datasets/MiniImagenet/miniImageNet_category_split_val.pickle"
+        
+        f = open(pkl_file, "rb")
+        self.data_dict = pickle.load(f, encoding='iso-8859-1')
+        f.close()
+        print(len(self.data_dict["labels"]))
+        self.transform = transform
+        self.target_transform = target_transform
+        self.debug = debug
+
+    def __len__(self):
+        if self.debug:
+            return len(self.data_dict["labels"][:10000])
+        else:
+            return len(self.data_dict["labels"])
+
+    def __getitem__(self, idx):
+        image  = torch.tensor(self.data_dict["data"][idx] /255).permute((2,0,1))
+        label  = self.data_dict["labels"][idx]
+
+        image = F.interpolate(image.unsqueeze(0), size=(512,512)).squeeze(0)
         if self.transform:
             image = self.transform(image)
         
