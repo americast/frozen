@@ -1,3 +1,5 @@
+DEBUG = False
+
 import pudb
 import transformers
 from transformers import T5Tokenizer, T5ForConditionalGeneration, T5Model
@@ -27,11 +29,18 @@ model_vis = torchvision.models.resnet50(pretrained = True)
 
 model_vis_ext = torch.nn.Sequential(torch.nn.Linear(1000,2048))
 
-data_here = data.CCD(transform = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+if DEBUG:
+    data_here = data.CCD(transform = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                     std=[0.229, 0.224, 0.225]), debug=DEBUG)
+else:
+    data_here = data.CCD(transform = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                      std=[0.229, 0.224, 0.225]), trainval="val")
-
-dataloader = DataLoader(data_here, batch_size=5,
-                        shuffle=False, num_workers=2)
+if DEBUG:
+    dataloader = DataLoader(data_here, batch_size=10,
+                            shuffle=False, num_workers=2)
+else:
+    dataloader = DataLoader(data_here, batch_size=10,
+                            shuffle=True, num_workers=2)
 
 
 num_gpus = os.environ['CUDA_VISIBLE_DEVICES'].split(',').__len__()
@@ -43,26 +52,43 @@ for p in model_lang.parameters():
 for p in model_lang_embed.parameters():
 	p.requires_grad = False
 
-model_vis = model_vis.cuda().eval()
+model_vis = model_vis.cuda()
 model_vis = torch.nn.DataParallel(model_vis)
-model_vis.load_state_dict(torch.load("saved_models/model_vis_1_5900.pth"))
+model_vis.load_state_dict(torch.load("saved_models/model_vis_0_2021-11-24_11:36:23.665906.pth"))
 
 
-model_vis_ext = model_vis_ext.cuda().eval()
+model_vis_ext = model_vis_ext.cuda()
 model_vis_ext = torch.nn.DataParallel(model_vis_ext)
-model_vis_ext.load_state_dict(torch.load("saved_models/model_vis_ext_1_5900.pth"))
+model_vis_ext.load_state_dict(torch.load("saved_models/model_vis_ext_0_2021-11-24_11:36:23.665906.pth"))
 
-
-model_lang_embed = model_lang_embed.cuda().eval()
+model_lang_embed = model_lang_embed.cuda()
 # model_lang_embed = torch.nn.DataParallel(model_lang_embed)
 
-model_lang = model_lang.cuda().eval()
+model_lang = model_lang.cuda()
+model_vis.eval()
+model_vis_ext.eval()
+model_lang_embed.eval()
+model_lang.eval()
+sums = 0
+for a in model_vis.parameters():
+    sums += torch.sum(a)
+for a in model_vis_ext.parameters():
+    sums += torch.sum(a)
+for a in model_lang.parameters():
+    sums += torch.sum(a)
+for a in model_lang_embed.parameters():
+    sums += torch.sum(a)
+print("sums: "+str(sums))
 # model_lang = torch.nn.DataParallel(model_lang)
 
 for e in range(1):
     losses = []
     for i, (img, label) in enumerate(tqdm(dataloader)):
         # Pass through vision module
+        if DEBUG:
+            img = img[1:2,:,:,:]
+            label = label[1:2]
+
         img = img.cuda()
         out_vis = model_vis(img)
         out_vis_ext = model_vis_ext(out_vis)
@@ -70,21 +96,45 @@ for e in range(1):
         out_vis_ext_2 = out_vis_ext[:, 1024:].unsqueeze(1)
 
         max_source_length = max_target_length = 1000
+        reses = []
         # Pass through the embedder
-        input_sequences = list(label)
-        encoding = tokenizer([sequence for sequence in input_sequences],
-                            padding='longest',
-                            max_length=max_source_length,
-                            truncation=True,
-                            return_tensors="pt")
-        encoding["input_ids"] = encoding["input_ids"].cuda()
-        out_embedder = model_lang_embed(encoding["input_ids"])
-        lang_input = torch.cat([out_vis_ext_1, out_vis_ext_2, out_embedder[:,0:1,:]], axis=1)
-        encoder_outputs = model_lang.encoder(inputs_embeds=lang_input, return_dict=True)
-        decoder_output = model_lang.generate(encoder_outputs=encoder_outputs)
-        # decoder_output = model_lang(inputs_embeds=lang_input, labels=encoding["input_ids"])
-        res = tokenizer.batch_decode(decoder_output, skip_special_tokens=True)
-        decoder_output_for_loss = model_lang(inputs_embeds=lang_input, labels=encoding["input_ids"])
-        loss = decoder_output_for_loss.loss
+        for bh, l in enumerate(label):
+
+            input_sequences = list([l])
+            encoding = tokenizer([sequence for sequence in input_sequences],
+                                padding='longest',
+                                max_length=max_source_length,
+                                truncation=True,
+                                return_tensors="pt")
+            encoding["input_ids"] = encoding["input_ids"].cuda()
+            encoding_pad = torch.zeros([encoding["input_ids"].shape[0],1]).int().cuda()
+            encoding_final = torch.cat([encoding_pad.cuda(), encoding["input_ids"]], axis =-1)
+            encoding_label_final = torch.cat([encoding["input_ids"], encoding_pad.cuda(),], axis =-1)
+            # out_embedder = model_lang_embed(encoding_final[:,0:1])
+            # lang_input = torch.cat([out_vis_ext_1, out_vis_ext_2], axis=1)
+            # encoder_outputs = model_lang.encoder(inputs_embeds=lang_input, return_dict=True)
+            # decoder_output = model_lang.generate(encoder_outputs=encoder_outputs, decoder_input_ids=encoding_final[:,0:1])
+
+            lang_input_encoder = torch.cat([out_vis_ext_1, out_vis_ext_2], axis=1)
+            do_final = encoding_pad
+            sm = torch.nn.Softmax(dim=-1)
+            for pos_here in range(1,encoding_label_final.shape[1]):
+                try:
+                    decoder_output = model_lang(inputs_embeds=lang_input_encoder[bh,:,:].unsqueeze(0), decoder_input_ids=do_final, labels=encoding_label_final[:,:pos_here])
+                except:
+                    pu.db
+                poses = sm(decoder_output.logits)
+                do = torch.argmax(poses, axis=-1)
+                do_final = torch.cat([do_final,do[:,-1:]], axis=-1)
+
+            res = tokenizer.batch_decode(do_final, skip_special_tokens=True)
+            reses.append(res)
+        pass
         pu.db
+
+
+        label_pad = torch.zeros([encoding["input_ids"].shape[0],2]).int() -100
+        label_final = torch.cat([label_pad.cuda(), encoding["input_ids"]], axis = -1)
+        decoder_output_for_loss = model_lang(inputs_embeds=lang_input, labels=label_final)
+        loss = decoder_output_for_loss.loss
         pass
