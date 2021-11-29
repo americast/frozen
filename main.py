@@ -1,4 +1,4 @@
-DEBUG = False
+DEBUG = True
 EPOCHS = 10000
 LR = 3e-4
 
@@ -146,10 +146,10 @@ for e in range(EPOCHS):
         encoding["input_ids"] = encoding["input_ids"].cuda()
         encoding_pad = torch.zeros([encoding["input_ids"].shape[0],1]).int()
         encoding_final = torch.cat([encoding_pad.cuda(), encoding["input_ids"]], axis =-1)
-        encoding_label_final = torch.cat([encoding["input_ids"], encoding_pad.cuda(),], axis =-1)
+        encoding_label_final = torch.cat([encoding_pad.cuda()*-100, encoding_pad.cuda()*-100, encoding["input_ids"], encoding_pad.cuda(),], axis =-1)
         out_embedder = model_lang_embed(encoding_final)
-        lang_input_encoder = torch.cat([out_vis_ext_1, out_vis_ext_2], axis=1)
-        decoder_output = model_lang(inputs_embeds=lang_input_encoder, decoder_input_ids=encoding_final, labels=encoding_label_final)
+        out_embedder_final = torch.cat([out_vis_ext_1, out_vis_ext_2, out_embedder], axis=1)
+        decoder_output = model_lang(input_ids=torch.zeros(out_embedder_final.shape[:2]).int(), decoder_inputs_embeds=out_embedder_final, labels=encoding_label_final)
         sm = torch.nn.Softmax(dim=-1)
         poses = sm(decoder_output.logits)
         do = torch.argmax(poses, axis=-1)
@@ -177,7 +177,6 @@ for e in range(EPOCHS):
             #     sums += torch.sum(a)
             # for a in model_lang_embed.module.parameters():
             #     sums += torch.sum(a)
-            print("\nInput: "+str(encoding_final[0,:])+"\n")
             print("\nGT output: "+str(encoding_label_final[0,:])+"\n")
             print("\nPred output: "+str(do[0,:])+"\n")
             timenow = str(datetime.now()).replace(" ","_")

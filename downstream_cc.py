@@ -1,4 +1,4 @@
-DEBUG = False
+DEBUG = True
 
 import pudb
 import transformers
@@ -54,12 +54,12 @@ for p in model_lang_embed.parameters():
 
 model_vis = model_vis.cuda()
 model_vis = torch.nn.DataParallel(model_vis)
-model_vis.load_state_dict(torch.load("saved_models/model_vis_0_2021-11-24_11:36:23.665906.pth"))
+model_vis.load_state_dict(torch.load("saved_models/DEBUG_model_vis_1094_2021-11-28_20:01:03.614535.pth"))
 
 
 model_vis_ext = model_vis_ext.cuda()
 model_vis_ext = torch.nn.DataParallel(model_vis_ext)
-model_vis_ext.load_state_dict(torch.load("saved_models/model_vis_ext_0_2021-11-24_11:36:23.665906.pth"))
+model_vis_ext.load_state_dict(torch.load("saved_models/DEBUG_model_vis_ext_1094_2021-11-28_20:01:03.614535.pth"))
 
 model_lang_embed = model_lang_embed.cuda()
 # model_lang_embed = torch.nn.DataParallel(model_lang_embed)
@@ -97,6 +97,44 @@ for e in range(1):
 
         max_source_length = max_target_length = 1000
         reses = []
+        input_sequences = list(label)
+        encoding = tokenizer([sequence for sequence in input_sequences],
+                            padding='longest',
+                            max_length=max_source_length,
+                            truncation=True,
+                            return_tensors="pt")
+        encoding["input_ids"] = encoding["input_ids"].cuda()
+        encoding_pad = torch.zeros([encoding["input_ids"].shape[0],1]).int()
+        encoding_final = torch.cat([encoding_pad.cuda(), encoding["input_ids"]], axis =-1)
+        encoding_label_final = torch.cat([encoding_pad.cuda()*-100, encoding_pad.cuda()*-100, encoding["input_ids"], encoding_pad.cuda(),], axis =-1)
+        out_embedder = model_lang_embed(encoding_final)
+        out_embedder_final = torch.cat([out_vis_ext_1, out_vis_ext_2, out_embedder], axis=1)
+        do_final = out_embedder_final[:,:3,:]
+        do_final_tokens = torch.zeros(do_final.shape[:2]).int().cuda()
+
+        sm = torch.nn.Softmax(dim=-1)
+        for pos_here in range(3,encoding_label_final.shape[1]):
+            # if pos_here == 4: pu.db
+            try:
+                decoder_output = model_lang(input_ids=torch.zeros(out_embedder_final.shape[:2]).int().cuda(), decoder_inputs_embeds=do_final, labels=encoding_label_final[:,:pos_here])
+            except:
+                pu.db
+            poses = sm(decoder_output.logits)
+            do = torch.argmax(poses, axis=-1)
+            do_final_tokens = torch.cat([do_final_tokens, do[:,-1:]], axis=-1)
+            do_embedding = model_lang_embed(do)
+            do_final = torch.cat([do_final, do_embedding[:,-1:]], axis=1)
+
+        pu.db
+        res = tokenizer.batch_decode(do_final_tokens, skip_special_tokens=True)
+        reses.append(res)
+
+
+
+
+
+
+
         # Pass through the embedder
         for bh, l in enumerate(label):
 
@@ -110,7 +148,7 @@ for e in range(1):
             encoding_pad = torch.zeros([encoding["input_ids"].shape[0],1]).int().cuda()
             encoding_final = torch.cat([encoding_pad.cuda(), encoding["input_ids"]], axis =-1)
             encoding_label_final = torch.cat([encoding["input_ids"], encoding_pad.cuda(),], axis =-1)
-            # out_embedder = model_lang_embed(encoding_final[:,0:1])
+            out_embedder = model_lang_embed(encoding_final[:,0:1])
             # lang_input = torch.cat([out_vis_ext_1, out_vis_ext_2], axis=1)
             # encoder_outputs = model_lang.encoder(inputs_embeds=lang_input, return_dict=True)
             # decoder_output = model_lang.generate(encoder_outputs=encoder_outputs, decoder_input_ids=encoding_final[:,0:1])

@@ -52,21 +52,27 @@ for p in model_lang.parameters():
 for p in model_lang_embed.parameters():
 	p.requires_grad = False
 
-model_vis = model_vis.cuda().eval()
+model_vis = model_vis.cuda()
 model_vis = torch.nn.DataParallel(model_vis)
-model_vis.load_state_dict(torch.load("saved_models/model_vis_1_5900.pth"))
+model_vis.load_state_dict(torch.load("saved_models/model_vis_0_2021-11-24_11:36:23.665906.pth"))
 
 
-model_vis_ext = model_vis_ext.cuda().eval()
+model_vis_ext = model_vis_ext.cuda()
 model_vis_ext = torch.nn.DataParallel(model_vis_ext)
-model_vis_ext.load_state_dict(torch.load("saved_models/model_vis_ext_1_5900.pth"))
+model_vis_ext.load_state_dict(torch.load("saved_models/model_vis_ext_0_2021-11-24_11:36:23.665906.pth"))
 
 
-model_lang_embed = model_lang_embed.cuda().eval()
+model_lang_embed = model_lang_embed.cuda()
 # model_lang_embed = torch.nn.DataParallel(model_lang_embed)
 
-model_lang = model_lang.cuda().eval()
+model_lang = model_lang.cuda()
 # model_lang = torch.nn.DataParallel(model_lang)
+
+model_vis.eval()
+model_vis_ext.eval()
+model_lang_embed.eval()
+model_lang.eval()
+
 dataloader.generate_data_list(phase='train')
 dataloader.generate_data_list(phase='val')
 dataloader.generate_data_list(phase='test')
@@ -101,9 +107,9 @@ for idx in tqdm(range(EPOCHS)):
     for etl in episode_train_label:
         pos = np.argmax(etl)
         if pos == 0:
-            label.append("This is a blicket.")
-        else:
             label.append("This is a dax.")
+        else:
+            label.append("This is a blicket.")
 
 
     input_sequences = list(label)
