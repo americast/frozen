@@ -17,7 +17,7 @@ class CCD(Dataset):
         if trainval == "train":
             self.tsv_folder = "/coc/dataset/conceptual_caption/DownloadConceptualCaptions/training/"
             f = open("tsv_list_training.pkl", "rb")
-        else:
+        elif trainval[0] =="v" or debug:
             self.tsv_folder = "/coc/dataset/conceptual_caption/DownloadConceptualCaptions/validation/"
             f = open("tsv_list_validation.pkl", "rb")
             os.system("rm -f val_imgs/*")
@@ -31,7 +31,7 @@ class CCD(Dataset):
 
     def __len__(self):
         if self.debug:
-            return len(self.tsv_list[:2])
+            return len(self.tsv_list[:100])
         else:
             return len(self.tsv_list)
 
@@ -55,8 +55,8 @@ class CCD(Dataset):
             image = pad(image)
         image = F.interpolate(image.unsqueeze(0), size=(224,224)).squeeze(0)
         label = self.tsv_list[idx][0]
-        if self.trainval[0] == "v":
-            os.system("cp "+img_path+" val_imgs/"+str(idx)+"_"+label.replace(" ","_")+"_"+img_path.split("/")[-1])
+        if self.trainval[0] == "v" or self.debug:
+            os.system('cp "'+img_path+'" "val_imgs/'+str(idx)+"_"+label.replace(" ","_")+"_"+img_path.split("/")[-1]+'"')
         if self.transform:
             image = self.transform(image)
         

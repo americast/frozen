@@ -1,8 +1,9 @@
 DEBUG = False
+EOS_POS = 50256
 
 import pudb
 import transformers
-from transformers import T5Tokenizer, T5ForConditionalGeneration, T5Model
+from transformers import GPT2Tokenizer, GPT2LMHeadModel
 import torchvision
 import torchvision.transforms as transforms
 import torch
@@ -19,15 +20,15 @@ import torch.optim as optim
 writer = SummaryWriter("logs/embedded_encoder"+str(datetime.now()).replace(" ","_"))
 
 # Initialise the pretrained language model
-tokenizer          = T5Tokenizer.from_pretrained("t5-large")
-model_lang         = T5ForConditionalGeneration.from_pretrained("t5-large")
-model_lang_embed   = torch.nn.Sequential(*list(model_lang.children())[:1])
+tokenizer          = GPT2Tokenizer.from_pretrained('gpt2')
+model_lang         = GPT2LMHeadModel.from_pretrained('gpt2')
+model_lang_embed   = model_lang.transformer.wte
 
-
+tokenizer.pad_token = tokenizer.eos_token
 # Initialise the vision model
 model_vis = torchvision.models.resnet50(pretrained = True)
 
-model_vis_ext = torch.nn.Sequential(torch.nn.Linear(1000,2048))
+model_vis_ext = torch.nn.Sequential(torch.nn.Linear(1000,1536))
 
 if DEBUG:
     data_here = data.CCD(transform = transforms.Normalize(mean=[0.485, 0.456, 0.406],
@@ -40,7 +41,7 @@ if DEBUG:
                             shuffle=False, num_workers=2)
 else:
     dataloader = DataLoader(data_here, batch_size=10,
-                            shuffle=True, num_workers=2)
+                            shuffle=False, num_workers=2)
 
 
 num_gpus = os.environ['CUDA_VISIBLE_DEVICES'].split(',').__len__()
@@ -54,12 +55,13 @@ for p in model_lang_embed.parameters():
 
 model_vis = model_vis.cuda()
 model_vis = torch.nn.DataParallel(model_vis)
-model_vis.load_state_dict(torch.load("saved_models/model_vis_0_2021-11-30_21:46:09.453205.pth"))
-
+# model_vis.load_state_dict(torch.load("saved_models/GPT_DEBUG_model_vis_1072_2021-12-09_08:14:11.397161.pth"))
+model_vis.load_state_dict(torch.load("saved_models/GPT_model_vis_0_2021-12-09_10:41:34.762717.pth"))
 
 model_vis_ext = model_vis_ext.cuda()
 model_vis_ext = torch.nn.DataParallel(model_vis_ext)
-model_vis_ext.load_state_dict(torch.load("saved_models/model_vis_ext_0_2021-11-30_21:46:09.453205.pth"))
+# model_vis_ext.load_state_dict(torch.load("saved_models/GPT_DEBUG_model_vis_ext_1072_2021-12-09_08:14:11.397161.pth"))
+model_vis_ext.load_state_dict(torch.load("saved_models/GPT_model_vis_ext_0_2021-12-09_10:41:34.762717.pth"))
 
 model_lang_embed = model_lang_embed.cuda()
 # model_lang_embed = torch.nn.DataParallel(model_lang_embed)
@@ -96,8 +98,8 @@ for e in range(1):
             img_here = img_here.cuda()
             out_vis = model_vis(img_here)
             out_vis_ext = model_vis_ext(out_vis)
-            out_vis_ext_1 = out_vis_ext[:, :1024].unsqueeze(1)
-            out_vis_ext_2 = out_vis_ext[:, 1024:].unsqueeze(1)
+            out_vis_ext_1 = out_vis_ext[:, :768].unsqueeze(1)
+            out_vis_ext_2 = out_vis_ext[:, 768:].unsqueeze(1)
 
             input_sequences = list([l])
             encoding = tokenizer([sequence for sequence in input_sequences],
@@ -107,26 +109,27 @@ for e in range(1):
                                 return_tensors="pt")
             encoding["input_ids"] = encoding["input_ids"].cuda()
             encoding_pad = torch.zeros([encoding["input_ids"].shape[0],1]).int()
-            encoding_final = torch.cat([encoding_pad.cuda(), encoding["input_ids"]], axis =-1)
-            encoding_label_final = torch.cat([encoding_pad.cuda()*-100, encoding_pad.cuda()*-100, encoding["input_ids"], encoding_pad.cuda(),], axis =-1)
-            out_embedder = model_lang_embed(encoding_final)
-            try:
-                out_embedder_final = torch.cat([out_vis_ext_1, out_vis_ext_2, out_embedder], axis=1)
-            except: pu.db
-            do_final = out_embedder_final[:,:3,:]
-            do_final_tokens = torch.zeros(do_final.shape[:2]).int().cuda()
+            # encoding_final = torch.cat([), encoding["input_ids"]], axis =-1)
+            mask_final = torch.cat([encoding_pad.cuda(),encoding_pad.cuda(),encoding_pad.cuda(), encoding["attention_mask"].cuda()], axis =-1)
+            encoding_label_final = torch.cat([encoding_pad.cuda()-100, encoding_pad.cuda()-100, encoding["input_ids"][:,1:], encoding_pad.cuda()+EOS_POS,], axis =-1)
+            out_embedder = model_lang_embed(encoding["input_ids"])
+            out_embedder_final = torch.cat([out_vis_ext_1, out_vis_ext_2, out_embedder], axis=1)
 
+            do_final = out_embedder_final[:,:3,:]
+            do_final_tokens = encoding["input_ids"][:, :1]
+            # do_final_tokens = torch.tensor([]).cuda()
             sm = torch.nn.Softmax(dim=-1)
-            for pos_here in range(3,encoding_label_final.shape[1]):
-                # if pos_here == 4: pu.db
+            for pos_here in range(3,100):
+                # if pos_here == 3: pu.db
                 try:
-                    decoder_output = model_lang(input_ids=torch.zeros([out_embedder_final.shape[0],1]).int().cuda(), decoder_inputs_embeds=do_final, labels=encoding_label_final[:,:pos_here])
+                    decoder_output = model_lang(inputs_embeds=do_final, labels=torch.zeros(do_final.shape[:2]).to(torch.int64).cuda())
                 except:
                     pu.db
-                poses = sm(decoder_output.logits)
-                do = torch.argmax(poses, axis=-1)
-                do_final_tokens = torch.cat([do_final_tokens, do[:,-1:]], axis=-1)
-                do_embedding = model_lang_embed(do)
+                do = sm(decoder_output.logits)
+                poses = torch.argmax(do, axis=-1)
+                if int(poses[:,-1:][0][0]) == EOS_POS: break
+                do_final_tokens = torch.cat([do_final_tokens, poses[:,-1:]], axis=-1)
+                do_embedding = model_lang_embed(poses)
                 do_final = torch.cat([do_final, do_embedding[:,-1:]], axis=1)
 
             res = tokenizer.batch_decode(do_final_tokens, skip_special_tokens=True)
