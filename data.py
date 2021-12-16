@@ -13,7 +13,7 @@ import torch.nn.functional as F
 import pickle
 
 class CCD(Dataset):
-    def __init__(self, trainval = "train", transform=None, target_transform=None, debug=False):
+    def __init__(self, trainval = "train", transform=None, debug=False):
         if trainval == "train":
             self.tsv_folder = "/coc/dataset/conceptual_caption/DownloadConceptualCaptions/training/"
             f = open("tsv_list_training.pkl", "rb")
@@ -25,7 +25,6 @@ class CCD(Dataset):
         print(len(self.tsv_list))
         f.close()
         self.transform = transform
-        self.target_transform = target_transform
         self.debug = debug
         self.trainval = trainval
 

@@ -108,13 +108,14 @@ for idx in tqdm(range(EPOCHS)):
     label     = []
     label_res_1 = ["Answer with rock or leaf."]
     label_res_2 = ["Question: What is this. Answer: This is a"]
-    for etl in episode_train_label:
+    # pu.db
+    req_pos   =  np.argmin(episode_test_label[0])
+    label_pos =  np.argmax(episode_test_label[0])
+    for req_idx, etl in enumerate(episode_train_label):
         pos = np.argmax(etl)
-        if pos == 0:
+        if pos == req_pos:
             label.append("Question: What is this. Answer: This is a rock.")
-        else:
-            label.append("Question: What is this. Answer: This is a leaf.")
-
+            break
 
     input_sequences = list(label)
     encoding = tokenizer([sequence for sequence in input_sequences],
@@ -163,16 +164,17 @@ for idx in tqdm(range(EPOCHS)):
     out_embedder_res_2 = model_lang_embed(encoding_res_2["input_ids"])
     to_cat = [out_embedder_ind[0,:,:]]
     # to_cat = []
-    for i in range(len(episode_train_label)):
-        to_cat.append(out_vis_ext_1[i,:,:])
-        to_cat.append(out_vis_ext_2[i,:,:])
-        to_cat.append(out_embedder[i,:,:])
+    # pu.db
+    # for i in range(len(episode_train_label)):
+    to_cat.append(out_vis_ext_1[req_idx,:,:])
+    to_cat.append(out_vis_ext_2[req_idx,:,:])
+    to_cat.append(out_embedder[0,:,:])
     to_cat.append(out_embedder_res_1[0,:,:])
     to_cat.append(out_vis_ext_1_test[0,:,:])
     to_cat.append(out_vis_ext_2_test[0,:,:])
     to_cat.append(out_embedder_res_2[0,:,:])
 
-
+    # pu.db
     lang_input = torch.cat(to_cat, axis=0).unsqueeze(0)
     sm = torch.nn.Softmax(dim=-1)
     decoder_output = model_lang(inputs_embeds=lang_input, labels=torch.zeros([1,lang_input.shape[1]]).cuda().to(torch.int64))
@@ -239,4 +241,5 @@ for idx in tqdm(range(EPOCHS)):
     pu.db
     pass
     """
+print((np.array(gts) == np.array(preds)).sum() / float(len(gts)))
 pu.db
