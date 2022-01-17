@@ -18,9 +18,14 @@ import os
 from datetime import datetime
 import torch.optim as optim
 import numpy as np
+import random
 
 EPOCHS = 100
 LR = 3e-4
+
+torch.manual_seed(1)
+random.seed(1)
+np.random.seed(1)
 
 torch.autograd.set_detect_anomaly(True)
 # Initialise the pretrained language model
@@ -108,10 +113,10 @@ for idx in tqdm(range(EPOCHS)):
 
 
     # Pass through the embedder
-    items = ["rock", "leaf", "coat", "jack", "seed"]
-    induction = "Answer with rock, leaf, coat, sock or seed."
+    items = ["rock", "leaf", "coat", "boat", "seed"]
+    induction = "Answer with rock, leaf, coat, boat or seed."
     label     = []
-    label_res_1 = ["Answer with rock, leaf, coat, sock or seed."]
+    label_res_1 = ["Answer with rock, leaf, coat, boat or seed."]
     label_res_2 = ["Question: What is this? Answer: This is a"]
     for etl in episode_train_label:
         pos = np.argmax(etl)

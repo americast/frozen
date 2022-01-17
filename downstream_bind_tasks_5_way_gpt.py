@@ -18,9 +18,14 @@ import os
 from datetime import datetime
 import torch.optim as optim
 import numpy as np
+import random
 
 EPOCHS = 1000
 LR = 1e-5
+
+torch.manual_seed(2)
+random.seed(2)
+np.random.seed(2)
 
 
 # Initialise the pretrained language model
@@ -104,10 +109,10 @@ for idx in tqdm(range(EPOCHS)):
 
     max_source_length = max_target_length = 1000
     # Pass through the embedder
-    items = ["rock", "leaf", "coat", "jack", "seed"]
-    induction = "Answer with rock, leaf, coat, sock or seed."
+    items = ["rock", "leaf", "coat", "boat", "seed"]
+    induction = "Answer with rock, leaf, coat, boat or seed."
     label     = []
-    label_res_1 = ["Answer with rock, leaf, coat, sock or seed."]
+    label_res_1 = ["Answer with rock, leaf, coat, boat or seed."]
     label_res_2 = ["Question: What is this? Answer: This is a"]
     for etl in episode_train_label:
         pos = np.argmax(etl)
@@ -181,13 +186,17 @@ for idx in tqdm(range(EPOCHS)):
     res = tokenizer.batch_decode(do, skip_special_tokens=True)
     str_res = res[0].split()[-1].strip(".")
 
+    match = False
     for item_idx, item in enumerate(items):
         if str_res[0] == item[0]:
             preds.append(item_idx)
-    preds_str.append(str_res)
+            match = True
 
-    pos = np.argmax(episode_test_label[0])
-    gts.append(pos)
+    if match:
+        preds_str.append(str_res)
+
+        pos = np.argmax(episode_test_label[0])
+        gts.append(pos)
     # print(res)
     """
     decoder_output = model_lang(inputs_embeds=lang_input, labels=encoding_res["input_ids"])
