@@ -58,7 +58,7 @@ model_vis = torch.nn.DataParallel(model_vis)
 if not update_switch:
     model_vis.load_state_dict(torch.load("saved_models/GPT_model_vis_0_2021-12-09_10:41:34.762717.pth"))
 else:
-    model_vis.load_state_dict(torch.load("saved_models/GPT_model_vis_updated_33_2022-01-17_18:13:11.012063.pth"))
+    model_vis.load_state_dict(torch.load("saved_models/GPT_model_vis_updated_2_2022-01-18_15:46:27.164041.pth"))
 
 
 model_vis_ext = model_vis_ext.cuda()
@@ -66,7 +66,7 @@ model_vis_ext = torch.nn.DataParallel(model_vis_ext)
 if not update_switch:
     model_vis_ext.load_state_dict(torch.load("saved_models/GPT_model_vis_ext_0_2021-12-09_10:41:34.762717.pth"))
 else:
-    model_vis_ext.load_state_dict(torch.load("saved_models/GPT_model_vis_updated_ext_33_2022-01-17_18:13:11.012063.pth"))
+    model_vis_ext.load_state_dict(torch.load("saved_models/GPT_model_vis_updated_ext_2_2022-01-18_15:46:27.164041.pth"))
 
 
 model_lang_embed = model_lang_embed.cuda()
@@ -208,30 +208,30 @@ for idx in tqdm(range(EPOCHS)):
     # do = do[:,-1]
     res = tokenizer.batch_decode(do, skip_special_tokens=True)
     str_res = res[0].split()[-1].strip(".")
-
+    # pu.db
     match = False
-    if not update_switch:
-        for item_idx, item in enumerate(items):
-            if str_res[0] == item[0]:
-                preds.append(item_idx)
-                match = True
+    # if not update_switch:
+    for item_idx, item in enumerate(items):
+        if str_res[0] == item[0]:
+            preds.append(item_idx)
+            match = True
 
-        preds_str.append(str_res)
+    preds_str.append(str_res)
 
-        if match:
-            pos = np.argmax(episode_test_label[0])
-            gts.append(pos)
-    else:
-        for item_idx, item in enumerate(items):
-            if str_res[2:6] == item:
-                preds.append(item_idx)
-                match = True
+    if match:
+        pos = np.argmax(episode_test_label[0])
+        gts.append(pos)
+    # else:
+    #     for item_idx, item in enumerate(items):
+    #         if str_res[2:6] == item:
+    #             preds.append(item_idx)
+    #             match = True
 
-        preds_str.append(str_res[2:6])
+    #     preds_str.append(str_res[2:6])
 
-        if match:
-            pos = np.argmax(episode_test_label[0])
-            gts.append(pos)
+    #     if match:
+    #         pos = np.argmax(episode_test_label[0])
+    #         gts.append(pos)
     # for item_idx, item in enumerate(items):
     #     if str_res[0] == item[0]:
     #         preds.append(item_idx)

@@ -19,7 +19,7 @@ from datetime import datetime
 import torch.optim as optim
 import numpy as np
 import random
-MAX_EPOCHS = 1000
+MAX_EPOCHS = 15
 EPOCHS = 1000
 LR = 1e-5
 
@@ -80,14 +80,14 @@ dataloader.generate_data_list(phase='test')
 
 dataloader.load_list(phase='all')
 
-preds = []
-preds_str = []
-gts = []
 
 model_vis_opt = optim.Adam(model_vis.parameters(), betas=(0.9, 0.95), lr=LR)
 model_vis_ext_opt = optim.Adam(model_vis_ext.parameters(), betas=(0.9, 0.95), lr=LR)
 
 for e in range(MAX_EPOCHS):
+    preds = []
+    preds_str = []
+    gts = []
     print("epoch: "+str(e))
     losses = []
     for idx in tqdm(range(EPOCHS)):
@@ -116,7 +116,7 @@ for e in range(MAX_EPOCHS):
         induction = "Answer with rock, leaf, coat, jack or seed."
         label     = []
         label_res_1 = ["Answer with rock, leaf, coat, jack or seed."]
-        label_res_2 = ["Question: What is this? Answer: This is a"]
+        label_res_2 = ["Question: What is this? Answer: This is a rock"]
         for etl in episode_train_label:
             pos = np.argmax(etl)
             label.append("Question: What is this? Answer: This is a "+items[pos]+".")
@@ -198,6 +198,7 @@ for e in range(MAX_EPOCHS):
         decoder_output = model_lang(inputs_embeds=lang_input, labels=encoding_label_final.cuda().to(torch.int64))
         loss = decoder_output.loss
         loss.backward()
+        # pu.db
         model_vis_opt.step()
         model_vis_ext_opt.step()
         model_vis_opt.zero_grad()
