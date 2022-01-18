@@ -20,7 +20,7 @@ import torch.optim as optim
 import numpy as np
 import random
 
-EPOCHS = 100
+EPOCHS = 1000
 LR = 3e-4
 
 torch.manual_seed(1)
@@ -198,6 +198,7 @@ for idx in tqdm(range(EPOCHS)):
         encoding_label_final[:,-2] = encoding["input_ids"][i,:][-2]
         encoding_label_final = torch.cat([encoding_pad.cuda()-100,encoding_pad.cuda()-100,encoding_pad.cuda()-100,encoding_pad.cuda()-100,encoding_pad.cuda()-100,encoding_pad.cuda()-100,encoding_pad.cuda()-100,encoding_pad.cuda()-100,encoding_pad.cuda()-100,encoding_pad.cuda()-100,encoding_pad.cuda()-100,encoding_pad.cuda()-100,encoding_pad.cuda()-100, encoding_pad.cuda()-100, encoding_pad.cuda()-100, encoding["input_ids"][:,1:]], axis =-1)[i:i+1,:]
         decoder_output = model_lang(inputs_embeds=lang_input, labels=encoding_label_final)
+        pu.db
         # decoder_output = model_lang(inputs_embeds=lang_input, labels=torch.zeros([1,lang_input.shape[1]]).cuda().to(torch.int64))
         # decoder_output = model_lang(inputs_embeds=torch.ones(lang_input.shape).cuda(), labels=torch.ones([1,lang_input.shape[1]]).cuda().to(torch.int64))
         # encoder_outputs = model_lang.encoder(inputs_embeds=lang_input, return_dict=True)

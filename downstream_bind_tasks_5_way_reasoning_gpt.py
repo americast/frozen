@@ -19,14 +19,10 @@ from datetime import datetime
 import torch.optim as optim
 import numpy as np
 import random
-
-EPOCHS = 1000
+EPOCHS = 600
 LR = 1e-5
 
-torch.manual_seed(2)
-random.seed(2)
-np.random.seed(2)
-
+update_switch = True
 
 # Initialise the pretrained language model
 tokenizer          = GPT2Tokenizer.from_pretrained('gpt2')
@@ -59,14 +55,18 @@ for p in model_lang_embed.parameters():
 
 model_vis = model_vis.cuda()
 model_vis = torch.nn.DataParallel(model_vis)
-model_vis.load_state_dict(torch.load("saved_models/GPT_model_vis_0_2021-12-09_10:41:34.762717.pth"))
-# model_vis.load_state_dict(torch.load("saved_models/GPT_model_vis_updated_33_2022-01-17_18:13:11.012063.pth"))
+if not update_switch:
+    model_vis.load_state_dict(torch.load("saved_models/GPT_model_vis_0_2021-12-09_10:41:34.762717.pth"))
+else:
+    model_vis.load_state_dict(torch.load("saved_models/GPT_model_vis_updated_33_2022-01-17_18:13:11.012063.pth"))
 
 
 model_vis_ext = model_vis_ext.cuda()
 model_vis_ext = torch.nn.DataParallel(model_vis_ext)
-model_vis_ext.load_state_dict(torch.load("saved_models/GPT_model_vis_ext_0_2021-12-09_10:41:34.762717.pth"))
-# model_vis_ext.load_state_dict(torch.load("saved_models/GPT_model_vis_updated_ext_33_2022-01-17_18:13:11.012063.pth"))
+if not update_switch:
+    model_vis_ext.load_state_dict(torch.load("saved_models/GPT_model_vis_ext_0_2021-12-09_10:41:34.762717.pth"))
+else:
+    model_vis_ext.load_state_dict(torch.load("saved_models/GPT_model_vis_updated_ext_33_2022-01-17_18:13:11.012063.pth"))
 
 
 model_lang_embed = model_lang_embed.cuda()
@@ -89,9 +89,22 @@ dataloader.load_list(phase='all')
 preds = []
 preds_str = []
 gts = []
+# already_seen = []
 
+# for idx in tqdm(range(EPOCHS)):
+#     episode_train_img, episode_train_label, episode_test_img, episode_test_label, file_names_here = dataloader.get_batch_with_true_labels(phase='train', idx=idx)
+#     for file_name in file_names_here:
+#         already_seen.append(file_name.split("/")[-2])
+
+# already_seen = list(set(already_seen))
 for idx in tqdm(range(EPOCHS)):
-    episode_train_img, episode_train_label, episode_test_img, episode_test_label = dataloader.get_batch(phase='train', idx=idx)
+    episode_train_img, episode_train_label, episode_test_img, episode_test_label, file_names_here = dataloader.get_batch_with_true_labels(phase='val', idx=idx)
+    # to_continue = False
+    # for file_name in file_names_here:
+    #     if file_name.split("/")[-2] in already_seen:
+    #         to_continue = True
+    # if to_continue: continue
+    # print("Not skipped")
     # episode_train_img = torch.tensor(episode_train_img).permute((0,3,1,2)).float().cuda()
     # episode_test_img = torch.tensor(episode_test_img).permute((0,3,1,2)).float().cuda()
     
@@ -111,10 +124,10 @@ for idx in tqdm(range(EPOCHS)):
 
     max_source_length = max_target_length = 1000
     # Pass through the embedder
-    items = ["rock", "leaf", "coat", "boat", "seed"]
-    induction = "Answer with rock, leaf, coat, boat or seed."
+    items = ["rock", "leaf", "coat", "jack", "seed"]
+    induction = "Answer with rock, leaf, coat, jack or seed."
     label     = []
-    label_res_1 = ["Answer with rock, leaf, coat, boat or seed."]
+    label_res_1 = ["Answer with rock, leaf, coat, jack or seed."]
     label_res_2 = ["Question: What is this? Answer: This is a"]
     for etl in episode_train_label:
         pos = np.argmax(etl)
@@ -166,7 +179,15 @@ for idx in tqdm(range(EPOCHS)):
     out_embedder_res_2 = model_lang_embed(encoding_res_2["input_ids"])
     to_cat = [out_embedder_ind[0,:,:]]
     # to_cat = []
+    # pu.db
+    label_pos_global = np.argmax(episode_test_label[0])
+    skip_done = False
     for i in range(len(episode_train_label)):
+        label_pos_here = np.argmax(episode_train_label[i])
+        if label_pos_here == label_pos_global:
+            if not skip_done:
+                skip_done = True
+                continue
         to_cat.append(out_vis_ext_1[i,:,:])
         to_cat.append(out_vis_ext_2[i,:,:])
         to_cat.append(out_embedder[i,:,:])
@@ -189,16 +210,35 @@ for idx in tqdm(range(EPOCHS)):
     str_res = res[0].split()[-1].strip(".")
 
     match = False
-    for item_idx, item in enumerate(items):
-        if str_res[0] == item[0]:
-            preds.append(item_idx)
-            match = True
+    if not update_switch:
+        for item_idx, item in enumerate(items):
+            if str_res[0] == item[0]:
+                preds.append(item_idx)
+                match = True
 
-    preds_str.append(str_res)
+        preds_str.append(str_res)
 
-    if match:
-        pos = np.argmax(episode_test_label[0])
-        gts.append(pos)
+        if match:
+            pos = np.argmax(episode_test_label[0])
+            gts.append(pos)
+    else:
+        for item_idx, item in enumerate(items):
+            if str_res[2:6] == item:
+                preds.append(item_idx)
+                match = True
+
+        preds_str.append(str_res[2:6])
+
+        if match:
+            pos = np.argmax(episode_test_label[0])
+            gts.append(pos)
+    # for item_idx, item in enumerate(items):
+    #     if str_res[0] == item[0]:
+    #         preds.append(item_idx)
+    # preds_str.append(str_res)
+
+    # pos = np.argmax(episode_test_label[0])
+    # gts.append(pos)
     # print(res)
     """
     decoder_output = model_lang(inputs_embeds=lang_input, labels=encoding_res["input_ids"])
